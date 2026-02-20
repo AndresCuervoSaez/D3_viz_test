@@ -1,0 +1,848 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Global GDP Explorer</title>
+    <style>
+      :root {
+        --bg: #f7f8fb;
+        --card: #ffffff;
+        --text: #182230;
+        --muted: #5c6773;
+        --grid: #e3e8ef;
+        --axis: #93a1b0;
+        --accent: #0f62fe;
+        --spain: #e4572e;
+        --shadow: 0 10px 30px rgba(9, 20, 34, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
+          Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+        background: radial-gradient(circle at 20% 0%, #ffffff 0, var(--bg) 45%);
+        color: var(--text);
+      }
+
+      .page {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 28px 18px 40px;
+      }
+
+      .header {
+        margin-bottom: 18px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(1.5rem, 1.8vw + 1rem, 2.4rem);
+        letter-spacing: -0.02em;
+      }
+
+      .subtitle {
+        margin-top: 8px;
+        color: var(--muted);
+        max-width: 75ch;
+        line-height: 1.45;
+      }
+
+      .panel {
+        background: var(--card);
+        border: 1px solid #e8edf4;
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+        padding: 16px;
+      }
+
+      .control-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(260px, 1fr));
+        gap: 14px;
+        align-items: end;
+      }
+
+      .control-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .label {
+        font-size: 0.82rem;
+        color: var(--muted);
+        margin-bottom: 5px;
+        width: 100%;
+      }
+
+      button,
+      .chip {
+        background: #f1f4f9;
+        border: 1px solid #d5deea;
+        color: var(--text);
+        border-radius: 999px;
+        padding: 8px 12px;
+        font-size: 0.84rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      button:hover,
+      .chip:hover,
+      button:focus-visible,
+      .chip:focus-visible {
+        outline: none;
+        border-color: #9cb2ce;
+        background: #e9eff7;
+      }
+
+      .chip.active,
+      button.active {
+        background: #dce9ff;
+        border-color: #99b7ef;
+        color: #153b7e;
+      }
+
+      .legend {
+        margin-top: 14px;
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 35px;
+      }
+
+      .legend-swatch {
+        width: 18px;
+        height: 3px;
+        border-radius: 5px;
+        background: #444;
+      }
+
+      .legend-item[aria-pressed="false"] {
+        opacity: 0.43;
+      }
+
+      .viz-wrap {
+        margin-top: 12px;
+      }
+
+      svg {
+        display: block;
+        width: 100%;
+      }
+
+      .axis text {
+        fill: #415466;
+        font-size: 0.75rem;
+      }
+
+      .axis path,
+      .axis line {
+        stroke: var(--axis);
+      }
+
+      .grid line {
+        stroke: var(--grid);
+        stroke-dasharray: 3 4;
+      }
+
+      .grid path {
+        display: none;
+      }
+
+      .tooltip {
+        position: fixed;
+        pointer-events: none;
+        background: rgba(16, 24, 40, 0.94);
+        color: #fff;
+        border-radius: 8px;
+        padding: 9px 10px;
+        font-size: 0.78rem;
+        line-height: 1.35;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+        transform: translate(-9999px, -9999px);
+        z-index: 40;
+      }
+
+      .anno-line {
+        stroke: #8494a7;
+        stroke-dasharray: 5 5;
+      }
+
+      .anno-text {
+        fill: #5e6c7a;
+        font-size: 0.7rem;
+      }
+
+      .footer-note {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+
+      .loading {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: #4c5a69;
+        font-size: 0.9rem;
+        margin-top: 16px;
+      }
+
+      .loading-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--accent);
+        animation: pulse 0.95s ease-in-out infinite alternate;
+      }
+
+      @keyframes pulse {
+        from {
+          opacity: 0.35;
+          transform: scale(0.9);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1.1);
+        }
+      }
+
+      @media (max-width: 840px) {
+        .control-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="header">
+        <h1>GDP Evolution Explorer</h1>
+        <p class="subtitle">
+          Compare annual GDP trends (current US$) across major economies from 1990 onward. Toggle countries,
+          switch linear/log/indexed scales, brush to zoom, and inspect yearly rank in the tooltip.
+        </p>
+      </header>
+
+      <section class="panel">
+        <div class="control-grid">
+          <div>
+            <div class="label">Scale & display</div>
+            <div class="control-group" id="modeControls"></div>
+          </div>
+          <div>
+            <div class="label">Actions</div>
+            <div class="control-group" id="actionControls"></div>
+          </div>
+        </div>
+        <div class="legend" id="legend" role="toolbar" aria-label="Toggle countries"></div>
+
+        <div class="viz-wrap" id="chart"></div>
+        <div class="loading" id="loading"><span class="loading-dot"></span> Loading GDP data…</div>
+        <div class="footer-note">Source: World Bank Open Data API — indicator <code>NY.GDP.MKTP.CD</code>.</div>
+      </section>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script type="module">
+      import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+
+      const COUNTRY_CODES = ["ESP", "FRA", "DEU", "ITA", "USA", "GBR", "CHN", "JPN"];
+      const COUNTRY_NAMES = {
+        ESP: "Spain",
+        FRA: "France",
+        DEU: "Germany",
+        ITA: "Italy",
+        USA: "United States",
+        GBR: "United Kingdom",
+        CHN: "China",
+        JPN: "Japan"
+      };
+
+      const palette = [
+        "#e4572e",
+        "#3659b5",
+        "#20a39e",
+        "#8b5fbf",
+        "#3a86ff",
+        "#ff9f1c",
+        "#2f9e44",
+        "#6c757d"
+      ];
+
+      const yearEvents = [
+        { year: 2008, label: "Global financial crisis" },
+        { year: 2020, label: "COVID-19 pandemic" }
+      ];
+
+      const state = {
+        cache: new Map(),
+        countries: COUNTRY_CODES,
+        selected: new Set(COUNTRY_CODES),
+        highlightSpain: false,
+        showAnnotations: true,
+        yMode: "linear",
+        indexed: false,
+        zoomDomain: null,
+        data: null
+      };
+
+      const chartHost = document.getElementById("chart");
+      const tooltip = document.getElementById("tooltip");
+      const loadingEl = document.getElementById("loading");
+      const legend = document.getElementById("legend");
+
+      function createButton(label, onClick, isActive = false) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = isActive ? "active" : "";
+        btn.textContent = label;
+        btn.addEventListener("click", onClick);
+        return btn;
+      }
+
+      function initControls() {
+        const modeHost = document.getElementById("modeControls");
+        const actionHost = document.getElementById("actionControls");
+
+        const linear = createButton("Linear", () => {
+          state.yMode = "linear";
+          state.indexed = false;
+          updateControls();
+          render();
+        }, true);
+        linear.dataset.mode = "linear";
+
+        const log = createButton("Log", () => {
+          state.yMode = "log";
+          state.indexed = false;
+          updateControls();
+          render();
+        });
+        log.dataset.mode = "log";
+
+        const idx = createButton("Indexed to 100 (2000)", () => {
+          state.indexed = !state.indexed;
+          if (state.indexed) state.yMode = "linear";
+          updateControls();
+          render();
+        });
+        idx.dataset.mode = "indexed";
+
+        modeHost.append(linear, log, idx);
+
+        const spainBtn = createButton("Highlight Spain", () => {
+          state.highlightSpain = !state.highlightSpain;
+          updateControls();
+          render();
+        });
+        spainBtn.dataset.action = "spain";
+
+        const annoBtn = createButton("Event markers", () => {
+          state.showAnnotations = !state.showAnnotations;
+          updateControls();
+          render();
+        }, true);
+        annoBtn.dataset.action = "anno";
+
+        const resetBtn = createButton("Reset zoom", () => {
+          state.zoomDomain = null;
+          render();
+        });
+
+        actionHost.append(spainBtn, annoBtn, resetBtn);
+      }
+
+      function updateControls() {
+        document.querySelectorAll("[data-mode]").forEach((el) => {
+          const mode = el.dataset.mode;
+          const active =
+            (mode === "indexed" && state.indexed) ||
+            (!state.indexed && mode === state.yMode && (mode === "linear" || mode === "log"));
+          el.classList.toggle("active", active);
+        });
+
+        const sp = document.querySelector("[data-action='spain']");
+        const an = document.querySelector("[data-action='anno']");
+        if (sp) sp.classList.toggle("active", state.highlightSpain);
+        if (an) an.classList.toggle("active", state.showAnnotations);
+      }
+
+      async function fetchCountrySeries(countryCode) {
+        if (state.cache.has(countryCode)) return state.cache.get(countryCode);
+
+        const url = `https://api.worldbank.org/v2/country/${countryCode}/indicator/NY.GDP.MKTP.CD?format=json&per_page=20000`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`World Bank API failed for ${countryCode}`);
+        const payload = await res.json();
+        const rows = payload?.[1] ?? [];
+
+        const data = rows
+          .map((d) => ({
+            year: +d.date,
+            value: d.value == null ? null : +d.value,
+            country: countryCode,
+            countryName: d.country?.value || COUNTRY_NAMES[countryCode] || countryCode
+          }))
+          .filter((d) => d.year >= 1990)
+          .sort((a, b) => a.year - b.year);
+
+        state.cache.set(countryCode, data);
+        return data;
+      }
+
+      function transformSeries(rawByCountry) {
+        const allYears = new Set();
+        rawByCountry.forEach((rows) => rows.forEach((d) => allYears.add(d.year)));
+        const years = [...allYears].sort((a, b) => a - b);
+
+        const series = rawByCountry.map((rows) => {
+          const country = rows[0]?.country;
+          const countryName = rows[0]?.countryName || COUNTRY_NAMES[country] || country;
+          const byYear = new Map(rows.map((r) => [r.year, r]));
+          const base2000 = byYear.get(2000)?.value ?? null;
+
+          const points = years.map((year) => {
+            const val = byYear.get(year)?.value ?? null;
+            const indexed = val != null && base2000 ? (val / base2000) * 100 : null;
+            return { year, value: val, indexed, country, countryName };
+          });
+
+          const firstValid = points.find((p) => p.value != null);
+          const lastValid = [...points].reverse().find((p) => p.value != null);
+          const cagr =
+            byYear.get(2000)?.value && lastValid?.value && lastValid.year > 2000
+              ? (Math.pow(lastValid.value / byYear.get(2000).value, 1 / (lastValid.year - 2000)) - 1) * 100
+              : null;
+
+          return { country, countryName, points, cagr, latest: lastValid?.value ?? null, dash: 0 };
+        });
+
+        series.forEach((s, i) => {
+          s.dash = i >= 5 ? 5 : 0;
+        });
+
+        return { series, years, minYear: years[0], maxYear: years.at(-1) };
+      }
+
+      function formatGDP(v) {
+        if (v == null || Number.isNaN(v)) return "N/A";
+        const sign = v < 0 ? "-" : "";
+        const abs = Math.abs(v);
+        if (abs >= 1e12) return `${sign}${(abs / 1e12).toFixed(abs >= 10e12 ? 0 : 1)}T`;
+        if (abs >= 1e9) return `${sign}${(abs / 1e9).toFixed(abs >= 10e9 ? 0 : 1)}B`;
+        if (abs >= 1e6) return `${sign}${(abs / 1e6).toFixed(1)}M`;
+        return `${sign}${d3.format(",.0f")(abs)}`;
+      }
+
+      function buildLegend(series) {
+        legend.innerHTML = "";
+
+        series.forEach((s, i) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "legend-item chip";
+          btn.style.setProperty("--line", palette[i % palette.length]);
+          btn.setAttribute("aria-pressed", String(state.selected.has(s.country)));
+          btn.setAttribute("title", "Click to toggle. Shift-click to isolate.");
+          btn.dataset.code = s.country;
+
+          const swatch = document.createElement("span");
+          swatch.className = "legend-swatch";
+          swatch.style.background = palette[i % palette.length];
+
+          const label = document.createElement("span");
+          const latest = s.latest != null ? formatGDP(s.latest) : "N/A";
+          const cagrText = s.cagr == null ? "" : ` · CAGR ${s.cagr.toFixed(1)}%`;
+          label.textContent = `${s.countryName} (${latest}${cagrText})`;
+
+          btn.append(swatch, label);
+
+          btn.addEventListener("click", (ev) => {
+            if (ev.shiftKey) {
+              state.selected = new Set([s.country]);
+            } else if (state.selected.has(s.country)) {
+              if (state.selected.size > 1) state.selected.delete(s.country);
+            } else {
+              state.selected.add(s.country);
+            }
+            buildLegend(series);
+            render();
+          });
+
+          btn.addEventListener("keydown", (ev) => {
+            if (ev.key === " " || ev.key === "Enter") {
+              ev.preventDefault();
+              btn.click();
+            }
+          });
+
+          legend.append(btn);
+        });
+      }
+
+      function getActiveSeries() {
+        return state.data.series.filter((s) => state.selected.has(s.country));
+      }
+
+      function render() {
+        if (!state.data) return;
+
+        chartHost.innerHTML = "";
+
+        const activeSeries = getActiveSeries();
+        const W = chartHost.clientWidth;
+        const H = Math.max(470, Math.min(700, Math.round(window.innerHeight * 0.68)));
+        const mainH = Math.round(H * 0.77);
+        const contextH = H - mainH;
+
+        const margin = { top: 20, right: 34, bottom: 42, left: 72 };
+        const marginC = { top: 6, right: 34, bottom: 25, left: 72 };
+
+        const svg = d3
+          .select(chartHost)
+          .append("svg")
+          .attr("viewBox", `0 0 ${W} ${H}`)
+          .attr("role", "img")
+          .attr("aria-label", "GDP multi-line chart with interactive brush and tooltip");
+
+        const gMain = svg.append("g").attr("transform", `translate(0,0)`);
+        const gContext = svg.append("g").attr("transform", `translate(0,${mainH})`);
+
+        const xBase = d3
+          .scaleLinear()
+          .domain([state.data.minYear, state.data.maxYear])
+          .range([margin.left, W - margin.right]);
+
+        const xDomain = state.zoomDomain || xBase.domain();
+        const x = d3.scaleLinear().domain(xDomain).range(xBase.range());
+
+        const visibleValues = activeSeries.flatMap((s) =>
+          s.points
+            .filter((p) => p.year >= xDomain[0] && p.year <= xDomain[1])
+            .map((p) => (state.indexed ? p.indexed : p.value))
+            .filter((v) => v != null && (!state.yMode.includes("log") || v > 0))
+        );
+
+        const fallback = state.indexed ? [50, 220] : [1e9, 1e13];
+        const yExtent = d3.extent(visibleValues.length ? visibleValues : fallback);
+
+        let y;
+        if (state.indexed) {
+          y = d3
+            .scaleLinear()
+            .domain([Math.max(0, yExtent[0] * 0.95), yExtent[1] * 1.05])
+            .nice()
+            .range([mainH - margin.bottom, margin.top]);
+        } else if (state.yMode === "log") {
+          y = d3
+            .scaleLog()
+            .domain([Math.max(1, yExtent[0] * 0.95), yExtent[1] * 1.06])
+            .range([mainH - margin.bottom, margin.top])
+            .nice();
+        } else {
+          y = d3
+            .scaleLinear()
+            .domain([0, yExtent[1] * 1.06])
+            .nice()
+            .range([mainH - margin.bottom, margin.top]);
+        }
+
+        const yAxis = d3
+          .axisLeft(y)
+          .ticks(8)
+          .tickFormat((d) => (state.indexed ? d3.format(".0f")(d) : formatGDP(+d)));
+
+        const xAxis = d3.axisBottom(x).ticks(Math.min(10, xDomain[1] - xDomain[0])).tickFormat(d3.format("d"));
+
+        const yGrid = d3.axisLeft(y).ticks(8).tickSize(-(W - margin.left - margin.right)).tickFormat("");
+
+        gMain
+          .append("g")
+          .attr("class", "grid")
+          .attr("transform", `translate(${margin.left},0)`)
+          .call(yGrid);
+
+        gMain
+          .append("g")
+          .attr("class", "axis")
+          .attr("transform", `translate(0,${mainH - margin.bottom})`)
+          .call(xAxis);
+
+        gMain
+          .append("g")
+          .attr("class", "axis")
+          .attr("transform", `translate(${margin.left},0)`)
+          .call(yAxis);
+
+        gMain
+          .append("text")
+          .attr("x", margin.left)
+          .attr("y", 12)
+          .attr("fill", "#5f6b7a")
+          .attr("font-size", "11")
+          .text(state.indexed ? "Index (2000 = 100)" : "GDP (current US$)");
+
+        const line = d3
+          .line()
+          .defined((d) => {
+            const v = state.indexed ? d.indexed : d.value;
+            return v != null && (state.yMode !== "log" || v > 0);
+          })
+          .x((d) => x(d.year))
+          .y((d) => y(state.indexed ? d.indexed : d.value))
+          .curve(d3.curveMonotoneX);
+
+        const colorBy = new Map(state.data.series.map((s, i) => [s.country, palette[i % palette.length]]));
+
+        if (state.showAnnotations) {
+          const ann = gMain.append("g");
+          yearEvents.forEach((ev) => {
+            if (ev.year < xDomain[0] || ev.year > xDomain[1]) return;
+            ann
+              .append("line")
+              .attr("class", "anno-line")
+              .attr("x1", x(ev.year))
+              .attr("x2", x(ev.year))
+              .attr("y1", margin.top)
+              .attr("y2", mainH - margin.bottom);
+            ann
+              .append("text")
+              .attr("class", "anno-text")
+              .attr("x", x(ev.year) + 4)
+              .attr("y", margin.top + 12)
+              .text(ev.label);
+          });
+        }
+
+        const lines = gMain.append("g");
+
+        activeSeries.forEach((s) => {
+          const path = lines
+            .append("path")
+            .datum(s.points)
+            .attr("fill", "none")
+            .attr("stroke", colorBy.get(s.country))
+            .attr("stroke-width", state.highlightSpain && s.country === "ESP" ? 4.2 : 2.2)
+            .attr("stroke-dasharray", s.dash ? `${s.dash} 4` : null)
+            .attr("opacity", state.highlightSpain && s.country !== "ESP" ? 0.3 : 0.95)
+            .attr("d", line);
+
+          const len = path.node().getTotalLength();
+          path
+            .attr("stroke-dasharray", `${len} ${len}`)
+            .attr("stroke-dashoffset", len)
+            .transition()
+            .duration(850)
+            .ease(d3.easeCubicOut)
+            .attr("stroke-dashoffset", 0)
+            .on("end", () => {
+              if (s.dash) {
+                d3.select(path.node()).attr("stroke-dasharray", `${s.dash} 4`);
+              } else {
+                d3.select(path.node()).attr("stroke-dasharray", null);
+              }
+            });
+        });
+
+        const ctxX = xBase.copy();
+        const ctxY = d3
+          .scaleLinear()
+          .domain([
+            0,
+            d3.max(state.data.series.flatMap((s) => s.points.map((p) => p.value)).filter((d) => d != null)) * 1.02
+          ])
+          .range([H - marginC.bottom, mainH + marginC.top]);
+
+        const lineContext = d3
+          .line()
+          .defined((d) => d.value != null)
+          .x((d) => ctxX(d.year))
+          .y((d) => ctxY(d.value));
+
+        gContext
+          .append("g")
+          .attr("transform", `translate(0,${H - marginC.bottom})`)
+          .attr("class", "axis")
+          .call(d3.axisBottom(ctxX).ticks(8).tickFormat(d3.format("d")));
+
+        const ctxLines = gContext.append("g").attr("opacity", 0.7);
+        state.data.series.forEach((s) => {
+          ctxLines
+            .append("path")
+            .datum(s.points)
+            .attr("fill", "none")
+            .attr("stroke", colorBy.get(s.country))
+            .attr("stroke-width", 1)
+            .attr("opacity", 0.6)
+            .attr("d", lineContext);
+        });
+
+        const brush = d3
+          .brushX()
+          .extent([
+            [margin.left, mainH + marginC.top],
+            [W - margin.right, H - marginC.bottom]
+          ])
+          .on("end", (event) => {
+            if (!event.selection) return;
+            const [x0, x1] = event.selection;
+            const yr0 = Math.round(ctxX.invert(x0));
+            const yr1 = Math.round(ctxX.invert(x1));
+            if (yr1 - yr0 < 2) return;
+            state.zoomDomain = [yr0, yr1];
+            render();
+          });
+
+        gContext.append("g").call(brush);
+
+        const overlay = gMain
+          .append("rect")
+          .attr("x", margin.left)
+          .attr("y", margin.top)
+          .attr("width", W - margin.left - margin.right)
+          .attr("height", mainH - margin.top - margin.bottom)
+          .attr("fill", "transparent")
+          .style("cursor", "crosshair");
+
+        const hoverLayer = gMain.append("g");
+        const vline = hoverLayer
+          .append("line")
+          .attr("stroke", "#334155")
+          .attr("stroke-width", 1)
+          .attr("stroke-dasharray", "4 4")
+          .style("display", "none");
+
+        const dots = hoverLayer.append("g");
+
+        function showTooltip(event) {
+          const [mx] = d3.pointer(event);
+          const year = Math.round(x.invert(mx));
+          if (!Number.isFinite(year)) return;
+
+          const points = activeSeries.map((s) => {
+            const p = s.points.find((d) => d.year === year);
+            const metric = state.indexed ? p?.indexed : p?.value;
+            return {
+              country: s.country,
+              countryName: s.countryName,
+              value: metric,
+              raw: p?.value ?? null,
+              x: x(year),
+              y: metric != null ? y(metric) : null,
+              color: colorBy.get(s.country)
+            };
+          });
+
+          const ranking = points
+            .filter((p) => p.raw != null)
+            .sort((a, b) => b.raw - a.raw)
+            .map((p, i) => ({ ...p, rank: i + 1 }));
+          const rankMap = new Map(ranking.map((r) => [r.country, r.rank]));
+
+          vline
+            .style("display", null)
+            .attr("x1", x(year))
+            .attr("x2", x(year))
+            .attr("y1", margin.top)
+            .attr("y2", mainH - margin.bottom);
+
+          const dotSel = dots.selectAll("circle").data(points.filter((p) => p.y != null), (d) => d.country);
+          dotSel
+            .join(
+              (enter) =>
+                enter
+                  .append("circle")
+                  .attr("r", 3.2)
+                  .attr("stroke", "#fff")
+                  .attr("stroke-width", 1)
+                  .attr("fill", (d) => d.color),
+              (update) => update,
+              (exit) => exit.remove()
+            )
+            .attr("cx", (d) => d.x)
+            .attr("cy", (d) => d.y);
+
+          const html = [
+            `<strong>${year}</strong>`,
+            ...points
+              .sort((a, b) => (b.raw ?? -Infinity) - (a.raw ?? -Infinity))
+              .map((p) => {
+                const valueLabel = state.indexed
+                  ? p.value == null
+                    ? "N/A"
+                    : `${d3.format(".1f")(p.value)}`
+                  : formatGDP(p.raw);
+                const rank = rankMap.get(p.country);
+                const rankText = rank ? ` · Rank #${rank}` : " · Rank N/A";
+                return `<div><span style="color:${p.color}">●</span> ${p.countryName}: <strong>${valueLabel}</strong>${rankText}</div>`;
+              })
+          ].join("");
+
+          tooltip.innerHTML = html;
+          const offsetX = 14;
+          const offsetY = 18;
+          let tx = event.clientX + offsetX;
+          let ty = event.clientY - offsetY;
+
+          const rect = tooltip.getBoundingClientRect();
+          if (tx + rect.width > window.innerWidth - 6) tx = event.clientX - rect.width - offsetX;
+          if (ty < 6) ty = event.clientY + offsetY;
+
+          tooltip.style.transform = `translate(${tx}px, ${ty}px)`;
+        }
+
+        overlay
+          .on("mousemove", showTooltip)
+          .on("mouseenter", () => {
+            tooltip.style.transform = "translate(0,0)";
+          })
+          .on("mouseleave", () => {
+            vline.style("display", "none");
+            dots.selectAll("circle").remove();
+            tooltip.style.transform = "translate(-9999px, -9999px)";
+          });
+      }
+
+      async function init() {
+        initControls();
+        updateControls();
+
+        try {
+          const rawByCountry = await Promise.all(state.countries.map(fetchCountrySeries));
+          state.data = transformSeries(rawByCountry);
+
+          buildLegend(state.data.series);
+          loadingEl.style.display = "none";
+          render();
+        } catch (err) {
+          loadingEl.textContent = `Failed to load data: ${err.message}`;
+          loadingEl.style.color = "#b42318";
+          console.error(err);
+        }
+      }
+
+      let resizeTimer;
+      window.addEventListener("resize", () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => render(), 120);
+      });
+
+      init();
+    </script>
+  </body>
+</html>
